@@ -305,7 +305,7 @@ Relevant fact-checks from multiple sources:
 
 # Streamlit UI
 st.title("PolitiFact Rating Recommender")
-st.caption("This generativr AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete.")
+st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete.")
 
 # Feature info in sidebar
 with st.sidebar:
