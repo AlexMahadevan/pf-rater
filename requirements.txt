@@ -5,3 +5,4 @@ pandas
 openai
 anthropic
 requests
+pyairtable

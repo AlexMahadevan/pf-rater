@@ -8,6 +8,7 @@ import requests
 import json
 from datetime import datetime
 import re
+from pyairtable import Api
 
 # Load index + metadata
 @st.cache_resource
@@ -24,6 +25,31 @@ claude_client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 # Google Fact Check API Key
 GOOGLE_FACTCHECK_API_KEY = st.secrets["GOOGLE_FACTCHECK_API_KEY"]
+
+# Airtable logging function
+def log_to_airtable(query, ai_response, sources_data, consensus):
+    """Log fact-check session to Airtable"""
+    try:
+        api = Api(st.secrets["AIRTABLE_API_KEY"])
+        # Use the table ID directly instead of name
+        table = api.table(st.secrets["AIRTABLE_BASE_ID"], st.secrets.get("AIRTABLE_TABLE_ID", "tblj5Tj4ZqxDLZsyJ"))
+        
+        # Prepare data for logging
+        record = {
+            "Query": query[:1000],  # Truncate if too long
+            "AI Response": ai_response[:2000],  # Truncate if too long
+            "Sources Count": len(sources_data),
+            "Consensus Level": consensus.get('agreement', 'N/A'),
+            "Average Rating": consensus.get('average_rating', 0) if consensus.get('average_rating') is not None else 0,
+            "Source Names": ", ".join([s.get('source_name', '') for s in sources_data])
+        }
+        
+        table.create(record)
+        return True
+        
+    except Exception as e:
+        st.error(f"Failed to log to Airtable: {str(e)}")
+        return False
 
 # Embed user query
 @st.cache_data
@@ -345,6 +371,10 @@ if query:
             # Display the main analysis
             st.markdown("## ✨ Analysis ✅")
             st.markdown(response.content[0].text.strip())
+            
+            # Log to Airtable
+            if log_to_airtable(query, response.content[0].text, sources_data, consensus):
+                st.success("✅ Session logged successfully")
             
         except Exception as e:
             st.error(f"Error generating analysis: {str(e)}")
