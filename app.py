@@ -264,6 +264,8 @@ CROSS-SOURCE CONSENSUS ANALYSIS:
     return f"""
 You are a senior research assistant helping a journalist assess the accuracy of a draft article for PolitiFact.
 
+IMPORTANT: Format your response with proper spacing and line breaks. Use clear, readable text without run-on formatting.
+
 Your task is to:
 1. Analyze the claim(s) in the draft text.
 2. Compare the evidence in the article to relevant fact-checks from MULTIPLE sources.
