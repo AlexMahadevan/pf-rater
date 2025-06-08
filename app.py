@@ -377,7 +377,7 @@ Relevant fact-checks from multiple sources:
 
 # Streamlit UI
 st.title("PolitiFact Rating Recommender")
-st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete.")
+st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete. I also messed around and added a transcription tool that pulls identifies claims, and then runs them through the same system. Just follow the step-by-step directions. A five-minute clip takes about 30 seconds.")
 
 # Feature info in sidebar
 with st.sidebar:
@@ -392,7 +392,7 @@ with st.sidebar:
     st.markdown("• **NEW:** Audio transcription & claim extraction")
 
 # Create tabs for different input methods
-tab1, tab2 = st.tabs(["📝 Text Fact-Check", "🎵 Audio Fact-Check"])
+tab1, tab2 = st.tabs(["📝 Text fact-check assistance", "🎵 Audio transcription"])
 
 # Initialize query
 query = None
@@ -400,13 +400,13 @@ query = None
 with tab1:
     # Text input interface
     query = st.text_area(
-        "📝 Paste your draft article or claim to fact-check:", 
+        "📝 Paste your draft article or claim to get context, feedback and jurisprudence:", 
         placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
         height=150
     )
 
 with tab2:
-    st.subheader("🎵 Audio/Video Fact-Checking")
+    st.subheader("🎵 Audio/Video transcription")
     st.caption("Manual workflow: Upload → Process → Select → Fact-check")
     
     # Step 1: File Upload
