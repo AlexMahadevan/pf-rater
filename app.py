@@ -26,7 +26,51 @@ claude_client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 # Google Fact Check API Key
 GOOGLE_FACTCHECK_API_KEY = st.secrets["GOOGLE_FACTCHECK_API_KEY"]
 
-# Airtable logging function
+# Whisper transcription function
+def transcribe_audio(audio_file):
+    """Transcribe audio file using OpenAI Whisper"""
+    try:
+        transcript = openai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
+        )
+        return transcript.text
+    except Exception as e:
+        st.error(f"Error transcribing audio: {str(e)}")
+        return None
+
+# Extract claims from transcript
+def extract_claims_from_transcript(transcript):
+    """Use Claude to extract factual claims from transcript"""
+    try:
+        prompt = f"""
+Please extract specific factual claims from this transcript that could be fact-checked. 
+Focus on statements that make verifiable assertions about facts, statistics, events, or policies.
+Ignore opinions, predictions, or subjective statements.
+
+Format each claim as a separate line starting with "CLAIM:" 
+
+Transcript:
+{transcript}
+"""
+        
+        response = claude_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800
+        )
+        
+        claims_text = response.content[0].text.strip()
+        # Extract individual claims
+        claims = []
+        for line in claims_text.split('\n'):
+            if line.strip().startswith('CLAIM:'):
+                claims.append(line.replace('CLAIM:', '').strip())
+        
+        return claims
+    except Exception as e:
+        st.error(f"Error extracting claims: {str(e)}")
+        return []
 def log_to_airtable(query, ai_response, sources_data, consensus):
     """Log fact-check session to Airtable"""
     try:
@@ -345,14 +389,170 @@ with st.sidebar:
     st.markdown("• Consensus analysis")
     st.markdown("• Confidence scoring")
     st.markdown("• Evidence gap identification")
+    st.markdown("• **NEW:** Audio transcription & claim extraction")
 
-# Main interface
-query = st.text_area(
-    "📝 Paste your draft article or claim to fact-check:", 
-    placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
-    height=150
-)
+# Create tabs for different input methods
+tab1, tab2 = st.tabs(["📝 Text Fact-Check", "🎵 Audio Fact-Check"])
 
+# Initialize query
+query = None
+
+with tab1:
+    # Text input interface
+    query = st.text_area(
+        "📝 Paste your draft article or claim to fact-check:", 
+        placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
+        height=150
+    )
+
+with tab2:
+    st.subheader("🎵 Audio/Video Fact-Checking")
+    st.caption("Manual workflow: Upload → Process → Select → Fact-check")
+    
+    # Step 1: File Upload
+    uploaded_file = st.file_uploader(
+        "Step 1: Choose an audio/video file",
+        type=['mp3', 'wav', 'm4a', 'mp4', 'mov', 'avi'],
+        help="Upload your file first, then click Process"
+    )
+    
+    # Step 2: Manual processing
+    if uploaded_file is not None:
+        st.audio(uploaded_file)
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if st.button("Step 2: 🎵 Process Audio", type="primary"):
+                st.session_state.processing = True
+        
+        with col2:
+            if st.button("🗑️ Clear Results"):
+                if 'audio_claims' in st.session_state:
+                    del st.session_state.audio_claims
+                if 'audio_transcript' in st.session_state:
+                    del st.session_state.audio_transcript
+                st.session_state.processing = False
+                st.rerun()
+    
+    # Step 3: Show processing results
+    if uploaded_file and st.session_state.get('processing', False):
+        with st.spinner("Processing audio... This may take a moment."):
+            transcript = transcribe_audio(uploaded_file)
+            
+            if transcript:
+                st.session_state.audio_transcript = transcript
+                claims = extract_claims_from_transcript(transcript)
+                st.session_state.audio_claims = claims if claims else []
+                st.session_state.processing = False
+                st.success("✅ Processing complete!")
+                st.rerun()
+    
+    # Step 4: Show results (only if we have them)
+    if st.session_state.get('audio_transcript'):
+        st.subheader("📝 Transcript")
+        st.text_area("", value=st.session_state.audio_transcript, height=150, disabled=True)
+        
+        if st.session_state.get('audio_claims'):
+            st.subheader(f"🎯 Found {len(st.session_state.audio_claims)} Claims")
+            
+            # Simple text input for claim selection
+            claim_number = st.number_input(
+                "Step 3: Enter claim number to fact-check:", 
+                min_value=1, 
+                max_value=len(st.session_state.audio_claims),
+                value=1,
+                help="Type the number of the claim you want to fact-check"
+            )
+            
+            # Show all claims
+            for i, claim in enumerate(st.session_state.audio_claims):
+                if i + 1 == claim_number:
+                    st.success(f"**{i+1}. {claim}** ← SELECTED")
+                else:
+                    st.write(f"**{i+1}.** {claim}")
+            
+            # Simple fact-check button
+            if st.button("Step 4: 🔍 Fact-Check Selected Claim", type="primary"):
+                selected_claim = st.session_state.audio_claims[claim_number - 1]
+                
+                # Process this specific claim
+                with st.spinner("🔍 Fact-checking..."):
+                    sources_data, consensus = get_multi_source_analysis(selected_claim)
+                    prompt = build_enhanced_prompt(selected_claim, sources_data, consensus)
+                    
+                    try:
+                        response = claude_client.messages.create(
+                            model="claude-3-5-sonnet-20241022",
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=1500
+                        )
+                        
+                        st.markdown("---")
+                        st.markdown("## ✨ Fact-Check Results")
+                        st.info(f"**Claim:** {selected_claim}")
+                        st.markdown(response.content[0].text.strip())
+                        
+                        # Log to Airtable
+                        if log_to_airtable(selected_claim, response.content[0].text, sources_data, consensus):
+                            st.success("✅ Session logged successfully")
+                        
+                        # Display consensus metrics
+                        if consensus['source_count'] > 1:
+                            st.markdown("### Cross-Source Consensus")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Agreement Level", consensus['agreement'])
+                            
+                            with col2:
+                                st.metric("Sources Found", consensus['source_count'])
+                            
+                            with col3:
+                                if consensus.get('average_rating') is not None:
+                                    rating_labels = {5: "True", 4: "Mostly True", 3: "Mixed", 2: "Mostly False", 1: "False", 0: "Pants on Fire"}
+                                    avg_label = rating_labels.get(round(consensus['average_rating']), f"{consensus['average_rating']:.1f}")
+                                    st.metric("Average Tendency", avg_label)
+                            
+                            if consensus.get('outliers'):
+                                st.warning(f"**Outlying opinions:** {', '.join(consensus['outliers'])}")
+                        
+                        # Display source details
+                        st.markdown("### Retrieved fact-checks by source")
+                        
+                        for source_data in sources_data:
+                            source_name = source_data.get('source_name', 'Unknown Source')
+                            results = source_data.get('results', [])
+                            
+                            if results:
+                                with st.expander(f"{source_name} ({len(results)} results)"):
+                                    for i, result in enumerate(results):
+                                        claim = result.get('claim', 'No claim text')
+                                        rating = result.get('rating', 'No rating')
+                                        publisher = result.get('publisher', 'Unknown')
+                                        url = result.get('url', '')
+                                        
+                                        # Format the display
+                                        st.markdown(f"**{i+1}. {claim[:100]}{'...' if len(claim) > 100 else ''}**")
+                                        st.markdown(f"*Publisher:* {publisher} | *Rating:* {rating}")
+                                        
+                                        if url:
+                                            st.markdown(f"[📖 Read full fact-check]({url})")
+                                        
+                                        # Show similarity score for PolitiFact results
+                                        if 'similarity_score' in result:
+                                            st.caption(f"Similarity score: {result['similarity_score']:.3f}")
+                                        
+                                        if i < len(results) - 1:
+                                            st.markdown("---")
+                        
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+        else:
+            st.warning("No fact-checkable claims found in the audio.")
+
+# Process the query ONLY from the text tab
 if query:
     with st.spinner("🔍 Analyzing across multiple fact-checking sources..."):
         # Get multi-source analysis
