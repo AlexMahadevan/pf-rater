@@ -104,7 +104,97 @@ def embed_text(text):
     )
     return response.data[0].embedding
 
-# Multi-source fact checking
+# Enhanced query processing for better API results
+def extract_key_terms_and_claims(text):
+    """Extract key terms and factual claims from draft text for better API searches"""
+    try:
+        prompt = f"""
+Analyze this draft text and extract:
+1. Key factual claims that could be fact-checked (specific, verifiable statements)
+2. Important search terms (people, organizations, statistics, policies, events)
+
+Format your response as:
+CLAIMS:
+- [Specific claim 1]
+- [Specific claim 2]
+- [etc.]
+
+SEARCH_TERMS:
+- [key term 1]
+- [key term 2]
+- [etc.]
+
+Text to analyze:
+{text[:2000]}
+"""
+        
+        response = claude_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600
+        )
+        
+        content = response.content[0].text.strip()
+        
+        # Parse the response
+        claims = []
+        search_terms = []
+        current_section = None
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if line.startswith('CLAIMS:'):
+                current_section = 'claims'
+            elif line.startswith('SEARCH_TERMS:'):
+                current_section = 'search_terms'
+            elif line.startswith('- ') and current_section:
+                term = line[2:].strip()
+                if current_section == 'claims':
+                    claims.append(term)
+                elif current_section == 'search_terms':
+                    search_terms.append(term)
+        
+        return claims, search_terms
+        
+    except Exception as e:
+        st.warning(f"Error extracting key terms: {str(e)}")
+        return [], []
+
+# Enhanced Google fact-check search with multiple queries
+def enhanced_google_factcheck_search(query, max_results=5):
+    """Enhanced Google Fact Check search using key terms and claims"""
+    if not GOOGLE_FACTCHECK_API_KEY:
+        return []
+    
+    all_results = []
+    
+    # If query is long (likely a draft), extract key terms
+    if len(query) > 200:
+        claims, search_terms = extract_key_terms_and_claims(query)
+        
+        # Search with extracted claims
+        for claim in claims[:3]:  # Top 3 claims
+            results = search_google_factcheck(claim, max_results=3)
+            all_results.extend(results)
+        
+        # Search with key terms
+        for term in search_terms[:3]:  # Top 3 terms
+            results = search_google_factcheck(term, max_results=2)
+            all_results.extend(results)
+    else:
+        # For short queries, use original method
+        all_results = search_google_factcheck(query, max_results)
+    
+    # Remove duplicates based on URL
+    seen_urls = set()
+    unique_results = []
+    for result in all_results:
+        url = result.get('url', '')
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            unique_results.append(result)
+    
+    return unique_results[:max_results]
 def search_google_factcheck(query, max_results=5):
     """Search Google's Fact Check Tools API"""
     if not GOOGLE_FACTCHECK_API_KEY:
@@ -275,8 +365,8 @@ def get_multi_source_analysis(query):
     politifact_data = search_politifact_db(query)
     sources_data.append(politifact_data)
     
-    # Search Google Fact Check API
-    google_results = search_google_factcheck(query)
+    # Enhanced Google Fact Check API search
+    google_results = enhanced_google_factcheck_search(query)
     if google_results:
         google_data = {
             'source_name': 'External Sources (via Google)',
@@ -377,7 +467,7 @@ Relevant fact-checks from multiple sources:
 
 # Streamlit UI
 st.title("PolitiFact Rating Recommender")
-st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete. I also messed around and added a transcription tool that pulls identifies claims, and then runs them through the same system. Just follow the step-by-step directions. A five-minute clip takes about 30 seconds.")
+st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete.")
 
 # Feature info in sidebar
 with st.sidebar:
@@ -392,7 +482,7 @@ with st.sidebar:
     st.markdown("• **NEW:** Audio transcription & claim extraction")
 
 # Create tabs for different input methods
-tab1, tab2 = st.tabs(["📝 Text fact-check assistance", "🎵 Audio transcription"])
+tab1, tab2 = st.tabs(["📝 Text Fact-Check", "🎵 Audio Fact-Check"])
 
 # Initialize query
 query = None
@@ -400,13 +490,13 @@ query = None
 with tab1:
     # Text input interface
     query = st.text_area(
-        "📝 Paste your draft article or claim to get context, feedback and jurisprudence:", 
+        "📝 Paste your draft article or claim to fact-check:", 
         placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
         height=150
     )
 
 with tab2:
-    st.subheader("🎵 Audio/Video transcription")
+    st.subheader("🎵 Audio/Video Fact-Checking")
     st.caption("Manual workflow: Upload → Process → Select → Fact-check")
     
     # Step 1: File Upload
@@ -497,26 +587,43 @@ with tab2:
                         if log_to_airtable(selected_claim, response.content[0].text, sources_data, consensus):
                             st.success("✅ Session logged successfully")
                         
-                        # Display consensus metrics
+                        # Display consensus metrics in a more readable way
                         if consensus['source_count'] > 1:
-                            st.markdown("### Cross-Source Consensus")
+                            st.markdown("### 📊 What Other Fact-Checkers Found")
                             
-                            col1, col2, col3 = st.columns(3)
+                            # Create a more narrative explanation
+                            agreement = consensus['agreement']
+                            source_count = consensus['source_count']
                             
-                            with col1:
-                                st.metric("Agreement Level", consensus['agreement'])
+                            if agreement == "Strong consensus":
+                                st.success(f"✅ **Strong Agreement**: {source_count} fact-checking sources mostly agree on this topic.")
+                            elif agreement == "Moderate agreement":
+                                st.info(f"⚖️ **Some Agreement**: {source_count} fact-checking sources have similar but not identical findings.")
+                            elif agreement == "Some disagreement":
+                                st.warning(f"🤔 **Mixed Findings**: {source_count} fact-checking sources have different conclusions.")
+                            else:
+                                st.error(f"⚠️ **Conflicting Information**: {source_count} fact-checking sources significantly disagree.")
                             
-                            with col2:
-                                st.metric("Sources Found", consensus['source_count'])
+                            # Show average tendency in plain language
+                            if consensus.get('average_rating') is not None:
+                                avg_rating = consensus['average_rating']
+                                if avg_rating >= 4:
+                                    tendency = "Most sources lean toward **TRUE**"
+                                elif avg_rating >= 3:
+                                    tendency = "Sources are **MIXED** on this claim"
+                                elif avg_rating >= 2:
+                                    tendency = "Most sources lean toward **FALSE**"
+                                else:
+                                    tendency = "Most sources rate this **FALSE**"
+                                
+                                st.write(f"**Overall pattern:** {tendency}")
                             
-                            with col3:
-                                if consensus.get('average_rating') is not None:
-                                    rating_labels = {5: "True", 4: "Mostly True", 3: "Mixed", 2: "Mostly False", 1: "False", 0: "Pants on Fire"}
-                                    avg_label = rating_labels.get(round(consensus['average_rating']), f"{consensus['average_rating']:.1f}")
-                                    st.metric("Average Tendency", avg_label)
-                            
+                            # Highlight conflicts
                             if consensus.get('outliers'):
-                                st.warning(f"**Outlying opinions:** {', '.join(consensus['outliers'])}")
+                                st.write("**⚠️ Note:** Some sources have notably different ratings:")
+                                for outlier in consensus['outliers']:
+                                    st.write(f"  • {outlier}")
+                                st.write("*Consider investigating why sources disagree.*")
                         
                         # Display source details
                         st.markdown("### Retrieved fact-checks by source")
@@ -579,27 +686,43 @@ if query:
         except Exception as e:
             st.error(f"Error generating analysis: {str(e)}")
     
-    # Display consensus metrics
+    # Display consensus metrics in a more readable way
     if consensus['source_count'] > 1:
-        st.markdown("## Cross-Source Consensus")
+        st.markdown("## 📊 What Other Fact-Checkers Found")
         
-        col1, col2, col3 = st.columns(3)
+        # Create a more narrative explanation
+        agreement = consensus['agreement']
+        source_count = consensus['source_count']
         
-        with col1:
-            consensus_color = "green" if consensus['consensus_level'] > 0.7 else "orange" if consensus['consensus_level'] > 0.4 else "red"
-            st.metric("Agreement Level", consensus['agreement'])
+        if agreement == "Strong consensus":
+            st.success(f"✅ **Strong Agreement**: {source_count} fact-checking sources mostly agree on this topic.")
+        elif agreement == "Moderate agreement":
+            st.info(f"⚖️ **Some Agreement**: {source_count} fact-checking sources have similar but not identical findings.")
+        elif agreement == "Some disagreement":
+            st.warning(f"🤔 **Mixed Findings**: {source_count} fact-checking sources have different conclusions.")
+        else:
+            st.error(f"⚠️ **Conflicting Information**: {source_count} fact-checking sources significantly disagree.")
         
-        with col2:
-            st.metric("Sources Found", consensus['source_count'])
+        # Show average tendency in plain language
+        if consensus.get('average_rating') is not None:
+            avg_rating = consensus['average_rating']
+            if avg_rating >= 4:
+                tendency = "Most sources lean toward **TRUE**"
+            elif avg_rating >= 3:
+                tendency = "Sources are **MIXED** on this claim"
+            elif avg_rating >= 2:
+                tendency = "Most sources lean toward **FALSE**"
+            else:
+                tendency = "Most sources rate this **FALSE**"
+            
+            st.write(f"**Overall pattern:** {tendency}")
         
-        with col3:
-            if consensus.get('average_rating') is not None:
-                rating_labels = {5: "True", 4: "Mostly True", 3: "Mixed", 2: "Mostly False", 1: "False", 0: "Pants on Fire"}
-                avg_label = rating_labels.get(round(consensus['average_rating']), f"{consensus['average_rating']:.1f}")
-                st.metric("Average Tendency", avg_label)
-        
+        # Highlight conflicts
         if consensus.get('outliers'):
-            st.warning(f"**Outlying opinions:** {', '.join(consensus['outliers'])}")
+            st.write("**⚠️ Note:** Some sources have notably different ratings:")
+            for outlier in consensus['outliers']:
+                st.write(f"  • {outlier}")
+            st.write("*Consider investigating why sources disagree.*")
     
     # Display source details
     st.markdown("## Retrieved fact-checks by source")
