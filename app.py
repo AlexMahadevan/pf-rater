@@ -55,7 +55,7 @@ Transcript:
 """
         
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-opus-4-20250514",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800
         )
@@ -128,7 +128,7 @@ Text to analyze:
 """
         
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-opus-4-20250514",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600
         )
@@ -572,7 +572,7 @@ with tab2:
                     
                     try:
                         response = claude_client.messages.create(
-                            model="claude-3-5-sonnet-20241022",
+                            model="claude-opus-4-20250514",
                             messages=[{"role": "user", "content": prompt}],
                             max_tokens=1500
                         )
@@ -669,7 +669,7 @@ if query:
         
         try:
             response = claude_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-opus-4-20250514",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1500
             )
