@@ -45,8 +45,8 @@ def extract_claims_from_transcript(transcript):
     try:
         prompt = f"""
 Please extract specific factual claims from this transcript that could be fact-checked. 
-Focus on statements that make verifiable assertions about facts, statistics, events, or policies.
-Ignore opinions, predictions, or subjective statements.
+Focus on statements that make verifiable assertions about facts, statistics, events or policies.
+Ignore opinions, predictions or subjective statements.
 
 Format each claim as a separate line starting with "CLAIM:" 
 
@@ -75,13 +75,12 @@ def log_to_airtable(query, ai_response, sources_data, consensus):
     """Log fact-check session to Airtable"""
     try:
         api = Api(st.secrets["AIRTABLE_API_KEY"])
-        # Use the table ID directly instead of name
         table = api.table(st.secrets["AIRTABLE_BASE_ID"], st.secrets.get("AIRTABLE_TABLE_ID", "tblj5Tj4ZqxDLZsyJ"))
         
         # Prepare data for logging
         record = {
-            "Query": query[:1000],  # Truncate if too long
-            "AI Response": ai_response[:2000],  # Truncate if too long
+            "Query": query[:1000],  
+            "AI Response": ai_response[:2000],  
             "Sources Count": len(sources_data),
             "Consensus Level": consensus.get('agreement', 'N/A'),
             "Average Rating": consensus.get('average_rating', 0) if consensus.get('average_rating') is not None else 0,
@@ -160,7 +159,7 @@ Text to analyze:
         st.warning(f"Error extracting key terms: {str(e)}")
         return [], []
 
-# Enhanced Google fact-check search with multiple queries
+# Google fact-check search with multiple queries
 def enhanced_google_factcheck_search(query, max_results=5):
     """Enhanced Google Fact Check search using key terms and claims"""
     if not GOOGLE_FACTCHECK_API_KEY:
@@ -365,7 +364,7 @@ def get_multi_source_analysis(query):
     politifact_data = search_politifact_db(query)
     sources_data.append(politifact_data)
     
-    # Enhanced Google Fact Check API search
+    # Google Fact Check API search
     google_results = enhanced_google_factcheck_search(query)
     if google_results:
         google_data = {
@@ -379,7 +378,7 @@ def get_multi_source_analysis(query):
     
     return sources_data, consensus
 
-# Enhanced prompt building
+# Prompt building
 def build_enhanced_prompt(query, sources_data, consensus):
     """Build prompt with multi-source context and consensus analysis"""
     
@@ -686,7 +685,7 @@ if query:
         except Exception as e:
             st.error(f"Error generating analysis: {str(e)}")
     
-    # Display consensus metrics in a more readable way
+    # Display consensus metrics
     if consensus['source_count'] > 1:
         st.markdown("## 📊 What Other Fact-Checkers Found")
         
@@ -703,7 +702,7 @@ if query:
         else:
             st.error(f"⚠️ **Conflicting Information**: {source_count} fact-checking sources significantly disagree.")
         
-        # Show average tendency in plain language
+        # Show average tendency
         if consensus.get('average_rating') is not None:
             avg_rating = consensus['average_rating']
             if avg_rating >= 4:
