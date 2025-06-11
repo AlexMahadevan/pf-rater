@@ -10,6 +10,13 @@ from datetime import datetime
 import re
 from pyairtable import Api
 
+# Web search configuration
+WEB_SEARCH_CONFIG = {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 2,  # Keep low to avoid slowdown
+}
+
 # Load index + metadata
 @st.cache_resource
 def load_data():
@@ -71,6 +78,7 @@ Transcript:
     except Exception as e:
         st.error(f"Error extracting claims: {str(e)}")
         return []
+
 def log_to_airtable(query, ai_response, sources_data, consensus):
     """Log fact-check session to Airtable"""
     try:
@@ -194,6 +202,7 @@ def enhanced_google_factcheck_search(query, max_results=5):
             unique_results.append(result)
     
     return unique_results[:max_results]
+
 def search_google_factcheck(query, max_results=5):
     """Search Google's Fact Check Tools API"""
     if not GOOGLE_FACTCHECK_API_KEY:
@@ -378,8 +387,33 @@ def get_multi_source_analysis(query):
     
     return sources_data, consensus
 
+# Helper functions for web search
+def extract_response_text(response):
+    """Extract text from Claude's response, handling web search structure"""
+    response_text = ""
+    for content in response.content:
+        if hasattr(content, 'type') and content.type == "text":
+            response_text += content.text
+        elif isinstance(content, dict) and content.get('type') == 'text':
+            response_text += content.get('text', '')
+    return response_text.strip()
+
+def should_use_web_search(query, sources_data, consensus):
+    """Determine if web search should be used"""
+    # Check for recent time indicators
+    recent_indicators = ['yesterday', 'today', 'this week', 'current', 'latest', '2025']
+    has_recent = any(indicator in query.lower() for indicator in recent_indicators)
+    
+    # Check if we have limited sources
+    has_limited_sources = len(sources_data) < 2 or consensus['source_count'] < 2
+    
+    # Short claims more likely to need current info
+    is_short_claim = len(query.split()) < 50
+    
+    return (has_recent or has_limited_sources) and is_short_claim
+
 # Prompt building
-def build_enhanced_prompt(query, sources_data, consensus):
+def build_enhanced_prompt(query, sources_data, consensus, use_web_search=False):
     """Build prompt with multi-source context and consensus analysis"""
     
     # Build context from all sources
@@ -420,10 +454,22 @@ CROSS-SOURCE CONSENSUS ANALYSIS:
     if consensus.get('outliers'):
         consensus_text += f"- Outlying Opinions: {', '.join(consensus['outliers'])}"
     
+    # Add web search instruction if enabled
+    search_instruction = ""
+    if use_web_search:
+        search_instruction = """
+IMPORTANT: Web search is enabled. Use it to find current information if:
+- The claim involves recent events or statistics
+- Existing fact-checks seem outdated
+- You need additional context for accuracy
+"""
+    
     return f"""
 You are a senior research assistant helping a journalist assess the accuracy of a draft article for PolitiFact.
 
 IMPORTANT: Format your response with proper spacing and line breaks. Use clear, readable text without run-on formatting.
+
+{search_instruction}
 
 Your task is to:
 1. Analyze the claim(s) in the draft text.
@@ -465,16 +511,18 @@ Relevant fact-checks from multiple sources:
 """
 
 # Streamlit UI
-st.title("Juris prudence finder (name TBD)")
+st.title("PolitiFact Rating Recommender")
 st.caption("This generative AI tool compares draft articles against PolitiFact's archive and external fact-checking sources. It identifies relevant jurisprudence, analyzes cross-source consensus and provides structured recommendations to support editorial decisions. I used retrieval-augmented generation (RAG) to mostly eliminate hallucinations by tying it to fact-check databases. Note: This is a prototype based on 9,000 fact-checks, so answers will not be complete.")
 
 # Feature info in sidebar
 with st.sidebar:
     st.header("⚙️ Features")
     st.success("✅ Google Fact Check API configured")
+    st.info("🔍 Claude Web Search available")
     st.markdown("**Capabilities:**")
     st.markdown("• PolitiFact database search")
     st.markdown("• Multi-source fact-check retrieval")
+    st.markdown("• Real-time web search (when needed)")
     st.markdown("• Consensus analysis")
     st.markdown("• Confidence scoring")
     st.markdown("• Evidence gap identification")
@@ -485,6 +533,7 @@ tab1, tab2 = st.tabs(["📝 Text Fact-Check", "🎵 Audio Fact-Check"])
 
 # Initialize query
 query = None
+use_web_search = False
 
 with tab1:
     # Text input interface
@@ -493,6 +542,24 @@ with tab1:
         placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
         height=150
     )
+    
+    # Web search toggle - ALWAYS visible
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.info("💡 **Tip:** Enable web search for claims about recent events or when you need current information")
+    
+    with col2:
+        use_web_search = st.checkbox(
+            "🔍 Web Search", 
+            value=False,  # Default to off
+            help="Enable to search for current information (adds 10-20 seconds)"
+        )
+    
+    # Show current mode
+    if use_web_search:
+        st.success("✅ Web search enabled - will look for current information")
+    else:
+        st.info("📚 Using fact-check databases only (faster)")
 
 with tab2:
     st.subheader("🎵 Audio/Video Fact-Checking")
@@ -568,22 +635,27 @@ with tab2:
                 # Process this specific claim
                 with st.spinner("🔍 Fact-checking..."):
                     sources_data, consensus = get_multi_source_analysis(selected_claim)
-                    prompt = build_enhanced_prompt(selected_claim, sources_data, consensus)
+                    prompt = build_enhanced_prompt(selected_claim, sources_data, consensus, use_web_search=True)
                     
                     try:
+                        # Always use web search for audio claims (they're usually short)
                         response = claude_client.messages.create(
                             model="claude-opus-4-20250514",
                             messages=[{"role": "user", "content": prompt}],
-                            max_tokens=1500
+                            max_tokens=1500,
+                            tools=[WEB_SEARCH_CONFIG]
                         )
                         
                         st.markdown("---")
                         st.markdown("## ✨ Fact-Check Results")
                         st.info(f"**Claim:** {selected_claim}")
-                        st.markdown(response.content[0].text.strip())
+                        
+                        # Extract and display response
+                        response_text = extract_response_text(response)
+                        st.markdown(response_text)
                         
                         # Log to Airtable
-                        if log_to_airtable(selected_claim, response.content[0].text, sources_data, consensus):
+                        if log_to_airtable(selected_claim, response_text, sources_data, consensus):
                             st.success("✅ Session logged successfully")
                         
                         # Display consensus metrics in a more readable way
@@ -665,21 +737,31 @@ if query:
         sources_data, consensus = get_multi_source_analysis(query)
         
         # Generate enhanced prompt and get Claude's analysis
-        prompt = build_enhanced_prompt(query, sources_data, consensus)
+        prompt = build_enhanced_prompt(query, sources_data, consensus, use_web_search)
         
         try:
-            response = claude_client.messages.create(
-                model="claude-opus-4-20250514",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1500
-            )
+            # Use web search based on toggle
+            if use_web_search:
+                response = claude_client.messages.create(
+                    model="claude-opus-4-20250514",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500,
+                    tools=[WEB_SEARCH_CONFIG]
+                )
+            else:
+                response = claude_client.messages.create(
+                    model="claude-opus-4-20250514",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500
+                )
             
             # Display the main analysis
             st.markdown("## ✨ Analysis ✅")
-            st.markdown(response.content[0].text.strip())
+            response_text = extract_response_text(response)
+            st.markdown(response_text)
             
             # Log to Airtable
-            if log_to_airtable(query, response.content[0].text, sources_data, consensus):
+            if log_to_airtable(query, response_text, sources_data, consensus):
                 st.success("✅ Session logged successfully")
             
         except Exception as e:
