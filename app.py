@@ -529,7 +529,7 @@ with st.sidebar:
     st.markdown("• **NEW:** Audio transcription & claim extraction")
 
 # Create tabs for different input methods
-tab1, tab2 = st.tabs(["📝 Text Fact-Check", "🎵 Audio Fact-Check"])
+tab1, tab2 = st.tabs(["📝 Text analysis", "🎵 Audio transcription"])
 
 # Initialize query
 query = None
@@ -562,7 +562,7 @@ with tab1:
         st.info("📚 Using fact-check databases only (faster)")
 
 with tab2:
-    st.subheader("🎵 Audio/Video Fact-Checking")
+    st.subheader("🎵 Audio/Video transcription/claim ID")
     st.caption("Manual workflow: Upload → Process → Select → Fact-check")
     
     # Step 1: File Upload
