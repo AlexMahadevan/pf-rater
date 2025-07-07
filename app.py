@@ -88,7 +88,7 @@ def log_to_airtable(query, ai_response, sources_data, consensus):
         # Prepare data for logging
         record = {
             "Query": query[:1000],  
-            "AI Response": ai_response[:2000],  
+            "AI Response": ai_response[:10000],  
             "Sources Count": len(sources_data),
             "Consensus Level": consensus.get('agreement', 'N/A'),
             "Average Rating": consensus.get('average_rating', 0) if consensus.get('average_rating') is not None else 0,
