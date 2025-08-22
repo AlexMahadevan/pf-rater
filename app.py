@@ -143,4 +143,4 @@ with tab2:
                         st.error(f"Error: {e}")
 
 st.markdown("---")
-st.markdown("**Important:** This tool supports human judgment. Always verify with primary sources and editorial standards.")
+st.markdown("**Important:** This tool supports human judgment. It was always augment — never replace a real fact-checker:).")
