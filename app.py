@@ -8,7 +8,8 @@ from services.fact_sources import get_multi_source_analysis
 from services.logging import log_to_airtable
 from prompts.assessment import build_enhanced_prompt
 from utils.parsing import extract_response_text
-from ui.components import consensus_badge, render_sources_block
+from ui.components import consensus_badge, render_sources_block, render_source_context
+from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
 
@@ -17,6 +18,12 @@ st.caption("Experimental assistant that compares drafts/claims against PolitiFac
            "analyzes cross-source consensus and suggests research next steps. It's powered by generative AI, so always adhere to [Poynter's AI guidance](https://docs.google.com/document/d/1yIb7QMz0IW02zbNm-qqfjFMvinYwuZmssJR01cx1iiQ/edit?tab=t.0) when using it.")
 
 index, metadata = load_index_and_meta()
+
+# Cache top sources for fast source detection
+@st.cache_data
+def get_known_sources(_metadata):
+    """Get list of frequently fact-checked sources for detection."""
+    return get_top_sources(_metadata, limit=500)  # Increased from 200 to cover more politicians
 
 def render_pretty(markdown_text: str):
     if not markdown_text:
@@ -50,6 +57,14 @@ with tab1:
     use_web = st.checkbox("🔍 Web Search", value=True, help="Enable Google lookups")
 
     if query and st.button("Analyze", type="primary"):
+        # Try to detect source/speaker from the claim text
+        known_sources = get_known_sources(metadata)
+        detected_source = extract_source_from_claim(query, known_sources)
+        
+        if detected_source:
+            source_stats = get_source_statistics(detected_source, metadata)
+            render_source_context(source_stats)
+        
         with st.spinner("Analyzing across PolitiFact and other fact-checkers..."):
             sources_data, consensus = get_multi_source_analysis(query, index, metadata, st.secrets.get("GOOGLE_FACTCHECK_API_KEY",""))
             # Show the PF anchor so editors understand the baseline
