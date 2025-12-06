@@ -31,22 +31,25 @@ def extract_source_from_claim(claim_text: str, all_sources: List[str]) -> Option
     # Common patterns for source attribution
     patterns = [
         # Social media format: "Ron DeSantis (@RonDeSantis) on X"
-        r"^([A-Z][a-z]+(?: [A-Z][a-z]+)*)\s*\(@?\w+\)\s*on\s+(?:X|Twitter|Facebook|Instagram)",
+        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)\s*\(@?\w+\)\s*on\s+(?:X|Twitter|Facebook|Instagram)",
+        
+        # Quote format with colon: "Robert F Kennedy Jr: 'quote'"
+        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*):\s*[\"']",
         
         # Standard attribution: "X said", "X claimed", etc.
-        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z][a-z]+)*) (?:said|says|stated|claims|claimed|wrote|posted)",
+        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*) (?:said|says|stated|claims|claimed|wrote|posted)",
         
         # Quote attribution: "according to X"
-        r"according to ([A-Z][a-z]+(?: [A-Z][a-z]+)*)",
+        r"according to ([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)",
         
         # Possessive: "X's claim/statement"
-        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z][a-z]+)*)'s (?:claim|statement|post|tweet)",
+        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)'s (?:claim|statement|post|tweet)",
         
         # Simple format: "X said" at start
-        r"^([A-Z][a-z]+(?: [A-Z][a-z]+)*) said",
+        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*) said",
         
         # Name at very beginning (for social posts)
-        r"^([A-Z][a-z]+(?: [A-Z][a-z]+)*)(?:\s*\(|:|\s+on\s+|\s*-)",
+        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)(?:\s*\(|:|\s+on\s+|\s*-)",
     ]
     
     for pattern in patterns:
@@ -54,16 +57,29 @@ def extract_source_from_claim(claim_text: str, all_sources: List[str]) -> Option
         if match:
             potential_source = match.group(1).strip()
             
+            # Normalize: remove/add periods in initials for better matching
+            # "Robert F Kennedy" should match "Robert F. Kennedy"
+            normalized_potential = re.sub(r'\b([A-Z])\s+', r'\1. ', potential_source)
+            
             # Check if it matches a known source (exact match)
             for source in all_sources:
-                if source.lower() == potential_source.lower():
+                # Try both with and without periods
+                if (source.lower() == potential_source.lower() or 
+                    source.lower() == normalized_potential.lower()):
                     return source
             
             # Check for partial matches (e.g., "Trump" matches "Donald Trump")
             for source in all_sources:
-                if potential_source.lower() in source.lower() or source.lower() in potential_source.lower():
+                source_lower = source.lower()
+                potential_lower = potential_source.lower()
+                normalized_lower = normalized_potential.lower()
+                
+                if (potential_lower in source_lower or 
+                    source_lower in potential_lower or
+                    normalized_lower in source_lower or
+                    source_lower in normalized_lower):
                     # Prefer longer match (full name over partial)
-                    if len(source) > len(potential_source):
+                    if len(source) >= len(potential_source):
                         return source
                     
     return None
