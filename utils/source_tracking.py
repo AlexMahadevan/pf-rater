@@ -80,6 +80,10 @@ def get_source_statistics(source: str, metadata: pd.DataFrame) -> Optional[Dict]
     Returns:
         Dictionary with statistics or None if source not found
     """
+    # Check if source column exists
+    if 'source' not in metadata.columns:
+        return None
+        
     source_claims = metadata[metadata['source'] == source]
     
     if len(source_claims) == 0:
@@ -140,6 +144,10 @@ def get_top_sources(metadata: pd.DataFrame, limit: int = 50) -> List[str]:
     Returns:
         List of source names, sorted by frequency
     """
+    # Check if source column exists
+    if 'source' not in metadata.columns:
+        return []
+    
     return metadata['source'].value_counts().head(limit).index.tolist()
 
 
