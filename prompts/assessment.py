@@ -1,4 +1,5 @@
 from typing import List, Dict
+from utils.source_tracking import format_rating_name
 
 def _summarize_pf_anchor(pf_results: List[Dict]) -> str:
     """
@@ -9,7 +10,8 @@ def _summarize_pf_anchor(pf_results: List[Dict]) -> str:
         return ""
     top = pf_results[0]
     claim = top.get("claim", "").strip()
-    rating = top.get("rating", "").strip()
+    raw_rating = top.get("rating", "").strip()
+    rating = format_rating_name(raw_rating) if raw_rating else ""
     url = top.get("url", "").strip()
     sim = top.get("similarity_score", None)
     anchor = f"- Nearest PolitiFact precedent: **{rating or 'N/A'}** — {claim}"
@@ -37,7 +39,8 @@ def build_enhanced_prompt(query: str, sources_data: list[dict], consensus: dict,
         ctx_parts.append(f"\n--- {name} ---")
         for r in results[:3]:
             claim = r.get("claim", "No claim")
-            rating = r.get("rating", "No rating")
+            raw_rating = r.get("rating", "No rating")
+            rating = format_rating_name(raw_rating)
             publisher = r.get("publisher", name)
             url = r.get("url", "")
             expl = r.get("explanation", "")

@@ -203,7 +203,8 @@ def format_rating_name(rating: str) -> str:
         'true': 'True',
         'mostly-true': 'Mostly True',
         'half-true': 'Half True',
-        'barely-true': 'Barely True',
+        'barely-true': 'Mostly False', # PolitiFact changed this in 2011
+        'mostly-false': 'Mostly False',
         'false': 'False',
         'pants-fire': 'Pants on Fire',
         'full-flop': 'Full Flop',

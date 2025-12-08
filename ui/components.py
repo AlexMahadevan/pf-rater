@@ -124,14 +124,18 @@ def render_source_context(source_stats: Optional[Dict]):
     
     # Custom styled source context box
 
-    ratings = source_stats.get('rating_breakdown', {})
+    # Pre-process ratings to reflect 2011 change: Barely True -> Mostly False
+    # We consolidate both keys into 'mostly-false' for display
+    ratings = source_stats.get('rating_breakdown', {}).copy()
+    ratings['mostly-false'] = ratings.get('mostly-false', 0) + ratings.get('barely-true', 0)
     
     # Define standard PolitiFact ratings with colors
+    # Updated 'barely-true' slot to 'mostly-false' with reddish-orange color
     rating_configs = [
         ('true', 'True', '#06D6A0'),
         ('mostly-true', 'Mostly True', '#A7C957'),
         ('half-true', 'Half True', '#FFCA3A'),
-        ('barely-true', 'Barely True', '#FF9F1C'),
+        ('mostly-false', 'Mostly False', '#FF7518'), # Reddish-Orange
         ('false', 'False', '#FF595E'),
         ('pants-fire', 'Pants on Fire', '#D62828')
     ]
