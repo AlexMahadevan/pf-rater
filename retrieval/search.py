@@ -56,6 +56,59 @@ def search_politifact_db(query: str, index, metadata: pd.DataFrame) -> Dict[str,
     # De-dup by URL (mirrors, repeats)
     dedup = []
     seen = set()
+    
+    # ---------------------------------------------------------
+    # HYBRID SEARCH: Keyword Boost
+    # ---------------------------------------------------------
+    # If the user mentions specific entities (capitalized words), ensure we scan for them
+    # and inject them into the results if missed by vector search.
+    import re
+    # Extract potential proper nouns (simple heuristic: capitalized words > 3 chars, ignore common starters)
+    ignore = {"What", "When", "Where", "Which", "This", "That", "There", "Here", "Does", "Is", "Are", "Can", "Could", "Should", "Would"}
+    tokens = [w.strip("?,.!\"'") for w in query.split()]
+    keywords = [w for w in tokens if w and w[0].isupper() and len(w) > 3 and w not in ignore]
+    
+    if keywords:
+        # Search for rows containing ALL keywords (AND logic) to be specific
+        # We search primarily in the claim and tags/people if available, or just claim/explanation
+        # Construct a mask
+        try:
+            # We use the existing metadata (pandas df)
+            # Create a combined text column for searching on the fly (fast enough for <50k rows)
+            search_col = (metadata["claim"].fillna("") + " " + metadata.get("explanation", "").fillna("")).str.lower()
+            
+            mask = np.ones(len(metadata), dtype=bool)
+            for k in keywords:
+                mask &= search_col.str.contains(k.lower(), regex=False)
+            
+            # Get matches
+            boost_rows = metadata[mask]
+            
+            # Add up to 10 keyword matches to the TOP of the results
+            # We give them a fake high similarity score to ensure they are seen
+            for _, row in boost_rows.head(10).iterrows():
+                # Format like a result
+                explanation = (row.get("explanation") or "")
+                if len(explanation) > 500:
+                    explanation = explanation[:500] + "..."
+                    
+                entry = {
+                    "source": "PolitiFact (Keyword Match)",
+                    "publisher": "PolitiFact",
+                    "claim": row.get("claim", ""),
+                    "rating": row.get("rating", ""),
+                    "explanation": explanation,
+                    "url": row.get("url", ""),
+                    "similarity_score": 0.99, # Fake high score
+                }
+                # Insert at start
+                results.insert(0, entry)
+        except Exception:
+            # Fallback if pandas ops fail (shouldn't happen but be safe)
+            pass
+
+    # ---------------------------------------------------------
+
     for r in results:
         u = r.get("url")
         if not u or u in seen:

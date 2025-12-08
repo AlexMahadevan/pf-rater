@@ -13,7 +13,7 @@ class Flags:
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
     # Retrieval
-    TOP_K: int = int(os.getenv("TOP_K", 5))
+    TOP_K: int = int(os.getenv("TOP_K", 25))
     SIM_THRESHOLD: float = float(os.getenv("SIM_THRESHOLD", 0.60))  # cosine-ish
 
     # Consensus

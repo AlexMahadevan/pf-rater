@@ -11,6 +11,7 @@ from utils.parsing import extract_response_text
 from ui.components import consensus_badge, render_sources_block, render_source_context
 from ui.custom_styles import get_custom_css
 from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources
+from retrieval.search import search_politifact_db
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
 
@@ -52,7 +53,7 @@ def render_pf_anchor(sources_data: list[dict]):
         msg += f" · similarity ≈ {sim:.2f}"
     st.info(msg)
 
-tab1, tab2 = st.tabs(["Text analysis", "Audio transcription"])
+tab1, tab2, tab3 = st.tabs(["Text analysis", "Audio transcription", "Chat with Archive"])
 
 with tab1:
     query = st.text_area("Paste your draft article or claim to fact-check:",
@@ -160,6 +161,106 @@ with tab2:
                         render_sources_block(sources_data)
                     except Exception as e:
                         st.error(f"Error: {e}")
+
+with tab3:
+    st.subheader("Chat with the PolitiFact Archive")
+    
+    # Use a container for the chat history to keep it self-contained
+    chat_container = st.container(height=600)
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Render history inside the container
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ask the archive (e.g., 'What about project 2025?')"):
+        # Add user message to state
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Render user message immediately in container
+        with chat_container:
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Searching archive..."):
+                    # 1. Retrieve context
+                    results = search_politifact_db(prompt, index, metadata)
+                    top_results = results.get("results", [])
+                    
+                    context_str = ""
+                    if top_results:
+                        context_items = []
+                        for r in top_results:
+                            # Create a concise block for the LLM
+                            block = (
+                                f"Claim: {r.get('claim', 'N/A')}\n"
+                                f"Rating: {r.get('rating', 'N/A')}\n"
+                                f"Explanation: {r.get('explanation', '')}\n"
+                                f"URL: {r.get('url', '')}"
+                            )
+                            context_items.append(block)
+                        context_str = "\n\n---\n\n".join(context_items)
+                    
+                    # 2. Build System Prompt (Instructions)
+                    system_instructions_text = (
+                        "You are a helpful assistant for PolitiFact. "
+                        "## Instructions\n"
+                        "- You must use retrieved sources to answer the journalist's question\n"
+                        "- Every claim in your answer MUST cite evidence in the retrieved articles AND include the specific URL provided in the context (formatted as markdown links).\n"
+                        "- If the journalist's search request is vague, ask for clarification\n"
+                        "- When answering the journalist:\n"
+                        "  - IF the retrieved articles are relevant AND from varying time periods, THEN ask the journalist what time period they are interested in\n"
+                        "  - IF the retrieved articles are relevant AND from a unified time period, THEN answer the journalist while citing articles\n"
+                        "  - IF the retrieved articles are NOT relevant, THEN tell the journalist you could not answer their question and to reword or rephrase their question\n"
+                        "- IF you cannot answer the journalist, you MUST tell them instead of guessing\n"
+                        "- You should always present information chronologically\n\n"
+                        "Do not generate content that might be physically or emotionally harmful.\n"
+                        "Do not generate hateful, racist, sexist, lewd, or violent content.\n"
+                        "Do not include any speculation or inference beyond what is provided.\n"
+                        "Do not infer details like background information, the reporter's gender, ancestry, roles, or positions.\n"
+                        "Do not change or assume dates and times unless specified.\n"
+                        "If a reporter asks for copyrighted content (books, lyrics, recipes, news articles, etc.), politely refuse and provide a brief summary or description instead."
+                    )
+                    
+                    # 3. Build User Message with Context (RAG)
+                    # We inject the retrieved context into the *latest* user turn for the LLM's visibility.
+                    rag_user_content = (
+                        f"Please answer the question based on the following context:\n\n"
+                        f"### Retrieved Fact-Checks:\n{context_str}\n\n"
+                        f"### Question:\n{prompt}"
+                    )
+                    
+                    # 4. Prepare History
+                    # We take all previous messages, but replace the *last* user message (which is just 'prompt' in UI state)
+                    # with our 'rag_user_content' for the LLM.
+                    api_messages = []
+                    # Copy history excluding the just-added prompt
+                    for m in st.session_state.messages[:-1]:
+                        api_messages.append({"role": m["role"], "content": m["content"]})
+                    
+                    # Append our context-enriched current prompt
+                    api_messages.append({"role": "user", "content": rag_user_content})
+
+                    # 5. Call Claude
+                    try:
+                        claude = get_anthropic()
+                        resp = claude.messages.create(
+                            model=FLAGS.ANTHROPIC_MODEL,
+                            max_tokens=1000,
+                            system=system_instructions_text,
+                            messages=api_messages
+                        )
+                        answer = extract_response_text(resp)
+                        st.markdown(answer)
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                        
+                    except Exception as e:
+                        st.error(f"Error generating response: {e}")
 
 st.markdown("---")
 st.markdown("**Important:** This tool supports human judgment. It will only augment — never replace a real fact-checker:).")
