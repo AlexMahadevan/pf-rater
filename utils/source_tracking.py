@@ -29,59 +29,81 @@ def extract_source_from_claim(claim_text: str, all_sources: List[str]) -> Option
         return None
     
     # Common patterns for source attribution
+    # Regex logic: Firstname + (Optional Middle Initial part) + (Optional Lastname part)
+    # Changed from + to * for middle initial group and added negative lookahead (?![a-z])
+    # to prevent matching the first letter of a last name as a middle initial (e.g., "Joe B" from "Joe Biden")
+    name_pattern = r"([A-Z][a-z]+(?: [A-Z]\.?(?![a-z]))*(?: [A-Z][a-z]+)*)"
+    
     patterns = [
         # Social media format: "Ron DeSantis (@RonDeSantis) on X"
-        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)\s*\(@?\w+\)\s*on\s+(?:X|Twitter|Facebook|Instagram)",
+        rf"^{name_pattern}\s*\(@?\w+\)\s*on\s+(?:X|Twitter|Facebook|Instagram)",
         
         # Quote format with colon: "Robert F Kennedy Jr: 'quote'"
-        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*):\s*[\"']",
+        rf"^{name_pattern}:\s*[\"']",
         
         # Standard attribution: "X said", "X claimed", etc.
-        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*) (?:said|says|stated|claims|claimed|wrote|posted)",
+        rf"(?:^|\s){name_pattern} (?:said|says|stated|claims|claimed|wrote|posted)",
         
         # Quote attribution: "according to X"
-        r"according to ([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)",
+        rf"according to {name_pattern}",
         
         # Possessive: "X's claim/statement"
-        r"(?:^|\s)([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)'s (?:claim|statement|post|tweet)",
+        rf"(?:^|\s){name_pattern}'s (?:claim|statement|post|tweet)",
         
         # Simple format: "X said" at start
-        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*) said",
+        rf"^{name_pattern} said",
         
         # Name at very beginning (for social posts)
-        r"^([A-Z][a-z]+(?: [A-Z]\.?)+(?: [A-Z][a-z]+)*)(?:\s*\(|:|\s+on\s+|\s*-)",
+        rf"^{name_pattern}(?:\s*\(|:|\s+on\s+|\s*-)",
     ]
     
+    import rapidfuzz
+    from rapidfuzz import process, fuzz
+    
+    detected_candidates = []
+
     for pattern in patterns:
         match = re.search(pattern, claim_text, re.IGNORECASE | re.MULTILINE)
         if match:
-            potential_source = match.group(1).strip()
+            candidate = match.group(1).strip()
+            detected_candidates.append(candidate)
             
-            # Normalize: remove/add periods in initials for better matching
-            # "Robert F Kennedy" should match "Robert F. Kennedy"
-            normalized_potential = re.sub(r'\b([A-Z])\s+', r'\1. ', potential_source)
+    # Also try to fuzzy match the entire claim against known sources if it's short
+    # or just try to find known sources IN the text using rapidfuzz partial match
+    if not detected_candidates and len(claim_text) < 100:
+        # If text is short and no regex match, maybe the claim IS the source name or close to it?
+        best_match = process.extractOne(claim_text, all_sources, scorer=fuzz.partial_ratio)
+        if best_match and best_match[1] > 85:
+             return best_match[0]
+
+    # Process candidates
+    for potential_source in detected_candidates:
+        # 1. Exact/Normalized match
+        normalized_potential = re.sub(r'\b([A-Z])\s+', r'\1. ', potential_source)
+        
+        # Use RapidFuzz for best match against all known sources
+        # score_cutoff=85 ensures high confidence
+        match = process.extractOne(
+            potential_source, 
+            all_sources, 
+            scorer=fuzz.token_sort_ratio, 
+            score_cutoff=80
+        )
+        
+        if match:
+            return match[0]
             
-            # Check if it matches a known source (exact match)
-            for source in all_sources:
-                # Try both with and without periods
-                if (source.lower() == potential_source.lower() or 
-                    source.lower() == normalized_potential.lower()):
-                    return source
-            
-            # Check for partial matches (e.g., "Trump" matches "Donald Trump")
-            for source in all_sources:
-                source_lower = source.lower()
-                potential_lower = potential_source.lower()
-                normalized_lower = normalized_potential.lower()
-                
-                if (potential_lower in source_lower or 
-                    source_lower in potential_lower or
-                    normalized_lower in source_lower or
-                    source_lower in normalized_lower):
-                    # Prefer longer match (full name over partial)
-                    if len(source) >= len(potential_source):
-                        return source
-                    
+        # Fallback to normalized check
+        match_norm = process.extractOne(
+            normalized_potential, 
+            all_sources, 
+            scorer=fuzz.token_sort_ratio, 
+            score_cutoff=80
+        )
+        
+        if match_norm:
+            return match_norm[0]
+
     return None
 
 
