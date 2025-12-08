@@ -123,59 +123,27 @@ def render_source_context(source_stats: Optional[Dict]):
     indicator = source_stats['indicator']
     
     # Custom styled source context box
-    context_html = f"""
-<div class="source-context-card">
-    <div style="font-family: 'Crimson Pro', serif; font-size: 1.8rem; font-weight: 700; color: #E6EDF3; margin-bottom: 1rem;">
-        Source Detected: <span style="color: #E63946;">{source}</span>
-    </div>
+
+    ratings = source_stats.get('rating_breakdown', {})
     
-    <div style="font-family: 'Crimson Pro', serif; font-size: 1.3rem; font-weight: 600; color: #E6EDF3; margin-bottom: 1rem;">
-        PolitiFact Track Record
-    </div>
+    # Define standard PolitiFact ratings with colors
+    rating_configs = [
+        ('true', 'True', '#06D6A0'),
+        ('mostly-true', 'Mostly True', '#A7C957'),
+        ('half-true', 'Half True', '#FFCA3A'),
+        ('barely-true', 'Barely True', '#FF9F1C'),
+        ('false', 'False', '#FF595E'),
+        ('pants-fire', 'Pants on Fire', '#D62828')
+    ]
     
-    <div style="font-family: 'Source Serif 4', serif; color: #7D8590; margin-bottom: 1rem; font-size: 1.1rem;">
-        Fact-checked <strong style="color: #E6EDF3;">{total}</strong> time{"s" if total != 1 else ""} since 2007
-    </div>
+    # Generate rows for breakdown
+    rows_html = ""
+    for key, label, color in rating_configs:
+        count = ratings.get(key, 0)
+        pct = (count / total * 100) if total > 0 else 0
+        rows_html += f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid rgba(255,255,255,0.03);"><span style="font-family: \'Source Serif 4\', serif; color: #E6EDF3; font-size: 0.95rem;">{label}</span><div style="display: flex; align-items: center; gap: 0.75rem;"><div style="width: 80px; height: 4px; background: rgba(48, 54, 61, 0.5); border-radius: 2px;"><div style="width: {pct}%; height: 100%; background: {color}; border-radius: 2px;"></div></div><span style="font-family: \'Source Serif 4\', serif; color: {color}; font-weight: 600; font-size: 0.95rem; min-width: 2.5rem; text-align: right;">{pct:.0f}%</span></div></div>'
+
+    # Custom styled source context box - Single line to prevent Markdown rendering issues
+    context_html = f"""<div class="source-context-card"><div style="font-family: 'Crimson Pro', serif; font-size: 1.6rem; font-weight: 700; color: #E6EDF3; margin-bottom: 0.5rem;">Source Detected: <span style="color: #E63946;">{source}</span></div><div style="font-family: 'Source Serif 4', serif; color: #7D8590; margin-bottom: 1rem; font-size: 1rem;">Fact-checked <strong style="color: #E6EDF3;">{total}</strong> times since 2007</div><div class="stats-box"><div style="font-family: 'Crimson Pro', serif; color: #E6EDF3; margin-bottom: 1rem; font-size: 1.1rem; font-weight: 600;">{indicator}</div><div style="display: flex; flex-direction: column;">{rows_html}</div></div></div>"""
     
-    <div class="stats-box">
-        <div style="font-family: 'Source Serif 4', serif; color: #E6EDF3; margin-bottom: 1rem; font-size: 1.05rem;">
-            {indicator}
-        </div>
-        
-        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">False/Misleading</span>
-                <strong style="font-family: 'Crimson Pro', serif; color: #E63946; font-size: 1.2rem;">{false_pct:.1f}%</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">True/Mostly True</span>
-                <strong style="font-family: 'Crimson Pro', serif; color: #06D6A0; font-size: 1.2rem;">{true_pct:.1f}%</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">Mixed/Half True</span>
-                <strong style="font-family: 'Crimson Pro', serif; color: #FFB627; font-size: 1.2rem;">{mixed_pct:.1f}%</strong>
-            </div>
-        </div>
-    </div>
-</div>
-"""
     st.markdown(context_html, unsafe_allow_html=True)
-    
-    # Detailed breakdown in expander
-    with st.expander("📋 View detailed rating breakdown"):
-        ratings = source_stats['rating_breakdown']
-        
-        # Sort ratings by count (most common first)
-        sorted_ratings = sorted(ratings.items(), key=lambda x: x[1], reverse=True)
-        
-        for rating, count in sorted_ratings:
-            pct = (count / total) * 100
-            formatted_rating = format_rating_name(rating)
-            
-            # Create progress bar for visual representation
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.markdown(f"**{formatted_rating}**")
-                st.progress(pct / 100)
-            with col2:
-                st.markdown(f"{count} ({pct:.1f}%)")
