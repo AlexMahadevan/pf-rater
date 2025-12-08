@@ -148,13 +148,13 @@ def get_source_statistics(source: str, metadata: pd.DataFrame) -> Optional[Dict]
     
     # Determine credibility indicator
     if false_pct > 50:
-        indicator = "🔴 High False Rate"
+        indicator = "High False Rate"
         color = "red"
     elif true_pct > 50:
-        indicator = "🟢 High True Rate"
+        indicator = "High True Rate"
         color = "green"
     else:
-        indicator = "🟡 Mixed Record"
+        indicator = "Mixed Record"
         color = "orange"
     
     return {
@@ -200,15 +200,15 @@ def format_rating_name(rating: str) -> str:
         Formatted rating name
     """
     rating_map = {
-        'true': '✅ True',
-        'mostly-true': '🟢 Mostly True',
-        'half-true': '🟡 Half True',
-        'barely-true': '🟠 Barely True',
-        'false': '🔴 False',
-        'pants-fire': '🔥 Pants on Fire',
-        'full-flop': '↩️ Full Flop',
-        'half-flip': '↪️ Half Flip',
-        'no-flip': '➡️ No Flip',
+        'true': 'True',
+        'mostly-true': 'Mostly True',
+        'half-true': 'Half True',
+        'barely-true': 'Barely True',
+        'false': 'False',
+        'pants-fire': 'Pants on Fire',
+        'full-flop': 'Full Flop',
+        'half-flip': 'Half Flip',
+        'no-flip': 'No Flip',
     }
     
     return rating_map.get(rating.lower(), rating.title())
