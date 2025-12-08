@@ -350,5 +350,21 @@ def get_custom_css():
     .stMarkdown h1 a, .stMarkdown h2 a, .stMarkdown h3 a, .stMarkdown h4 a, .stMarkdown h5 a, .stMarkdown h6 a {
         display: none !important;
     }
+    
+    /* Result card styling */
+    .result-card {
+        background: rgba(22, 27, 34, 0.6);
+        border: 1px solid #30363D;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(8px);
+    }
+    
+    .result-card:hover {
+        border-color: #E63946;
+        transform: translateX(4px);
+    }
     </style>
     """

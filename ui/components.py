@@ -92,7 +92,7 @@ def render_sources_block(sources_data: list[dict]):
                 
                 # Custom styled card for each result - single HTML block
                 card_html = f"""
-<div style="background: rgba(22, 27, 34, 0.6); border: 1px solid #30363D; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; transition: all 0.3s ease; backdrop-filter: blur(8px);" onmouseover="this.style.borderColor='#E63946'; this.style.transform='translateX(4px)'" onmouseout="this.style.borderColor='#30363D'; this.style.transform='translateX(0)'">
+<div class="result-card">
     <div style="font-family: 'Crimson Pro', serif; font-size: 1.1rem; font-weight: 600; color: #E6EDF3; margin-bottom: 0.75rem; line-height: 1.5;">{i+1}. {claim[:150]}{'...' if len(claim) > 150 else ''}</div>
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
         <span style="font-family: 'Source Serif 4', serif; color: #7D8590;"><strong style="color: #E6EDF3;">Publisher:</strong> {publisher}</span>
