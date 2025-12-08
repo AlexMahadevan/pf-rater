@@ -366,5 +366,24 @@ def get_custom_css():
         border-color: #E63946;
         transform: translateX(4px);
     }
+    
+    /* Source context card styling */
+    .source-context-card {
+        background: linear-gradient(135deg, rgba(230, 57, 70, 0.1) 0%, rgba(230, 57, 70, 0.05) 100%);
+        border: 1px solid #30363D;
+        border-left: 4px solid #E63946;
+        border-radius: 16px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        backdrop-filter: blur(12px);
+        animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .stats-box {
+        background: rgba(13, 17, 23, 0.4);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+    }
     </style>
     """

@@ -124,81 +124,41 @@ def render_source_context(source_stats: Optional[Dict]):
     
     # Custom styled source context box
     context_html = f"""
-    <div style="
-        background: linear-gradient(135deg, rgba(230, 57, 70, 0.1) 0%, rgba(230, 57, 70, 0.05) 100%);
-        border: 1px solid #30363D;
-        border-left: 4px solid #E63946;
-        border-radius: 16px;
-        padding: 2rem;
-        margin: 1.5rem 0;
-        backdrop-filter: blur(12px);
-        animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    ">
-        <div style="
-            font-family: 'Crimson Pro', serif;
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #E6EDF3;
-            margin-bottom: 1rem;
-        ">Source Detected: <span style="color: #E63946;">{source}</span></div>
+<div class="source-context-card">
+    <div style="font-family: 'Crimson Pro', serif; font-size: 1.8rem; font-weight: 700; color: #E6EDF3; margin-bottom: 1rem;">
+        Source Detected: <span style="color: #E63946;">{source}</span>
+    </div>
+    
+    <div style="font-family: 'Crimson Pro', serif; font-size: 1.3rem; font-weight: 600; color: #E6EDF3; margin-bottom: 1rem;">
+        PolitiFact Track Record
+    </div>
+    
+    <div style="font-family: 'Source Serif 4', serif; color: #7D8590; margin-bottom: 1rem; font-size: 1.1rem;">
+        Fact-checked <strong style="color: #E6EDF3;">{total}</strong> time{"s" if total != 1 else ""} since 2007
+    </div>
+    
+    <div class="stats-box">
+        <div style="font-family: 'Source Serif 4', serif; color: #E6EDF3; margin-bottom: 1rem; font-size: 1.05rem;">
+            {indicator}
+        </div>
         
-        <div style="
-            font-family: 'Crimson Pro', serif;
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #E6EDF3;
-            margin-bottom: 1rem;
-        ">PolitiFact Track Record</div>
-        
-        <div style="
-            font-family: 'Source Serif 4', serif;
-            color: #7D8590;
-            margin-bottom: 1rem;
-            font-size: 1.1rem;
-        ">Fact-checked <strong style="color: #E6EDF3;">{total}</strong> time{"s" if total != 1 else ""} since 2007</div>
-        
-        <div style="
-            background: rgba(13, 17, 23, 0.4);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-top: 1rem;
-        ">
-            <div style="
-                font-family: 'Source Serif 4', serif;
-                color: #E6EDF3;
-                margin-bottom: 1rem;
-                font-size: 1.05rem;
-            ">{indicator}</div>
-            
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">
-                        False/Misleading
-                    </span>
-                    <strong style="font-family: 'Crimson Pro', serif; color: #E63946; font-size: 1.2rem;">
-                        {false_pct:.1f}%
-                    </strong>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">
-                        True/Mostly True
-                    </span>
-                    <strong style="font-family: 'Crimson Pro', serif; color: #06D6A0; font-size: 1.2rem;">
-                        {true_pct:.1f}%
-                    </strong>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">
-                        Mixed/Half True
-                    </span>
-                    <strong style="font-family: 'Crimson Pro', serif; color: #FFB627; font-size: 1.2rem;">
-                        {mixed_pct:.1f}%
-                    </strong>
-                </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">False/Misleading</span>
+                <strong style="font-family: 'Crimson Pro', serif; color: #E63946; font-size: 1.2rem;">{false_pct:.1f}%</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">True/Mostly True</span>
+                <strong style="font-family: 'Crimson Pro', serif; color: #06D6A0; font-size: 1.2rem;">{true_pct:.1f}%</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: 'Source Serif 4', serif; color: #E6EDF3;">Mixed/Half True</span>
+                <strong style="font-family: 'Crimson Pro', serif; color: #FFB627; font-size: 1.2rem;">{mixed_pct:.1f}%</strong>
             </div>
         </div>
     </div>
-    """
+</div>
+"""
     st.markdown(context_html, unsafe_allow_html=True)
     
     # Detailed breakdown in expander
