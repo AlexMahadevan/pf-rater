@@ -1,0 +1,9 @@
+[theme]
+primaryColor = "#E63946"  # Vivid red for accents
+backgroundColor = "#0D1117"  # Deep dark background
+secondaryBackgroundColor = "#161B22"  # Slightly lighter panels
+textColor = "#E6EDF3"  # Cool white text
+font = "serif"  # Will be overridden with custom font
+
+[browser]
+gatherUsageStats = false

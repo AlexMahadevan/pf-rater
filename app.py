@@ -9,9 +9,13 @@ from services.logging import log_to_airtable
 from prompts.assessment import build_enhanced_prompt
 from utils.parsing import extract_response_text
 from ui.components import consensus_badge, render_sources_block, render_source_context
+from ui.custom_styles import get_custom_css
 from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
+
+# Inject custom CSS for distinctive design
+st.markdown(get_custom_css(), unsafe_allow_html=True)
 
 st.title("PolitiFact Jurisprudence Assistant")
 st.caption("Experimental assistant that compares drafts/claims against PolitiFact's archive and external fact-checks, "
@@ -48,13 +52,13 @@ def render_pf_anchor(sources_data: list[dict]):
         msg += f" · similarity ≈ {sim:.2f}"
     st.info(msg)
 
-tab1, tab2 = st.tabs(["📝 Text analysis", "🎵 Audio transcription"])
+tab1, tab2 = st.tabs(["Text analysis", "Audio transcription"])
 
 with tab1:
-    query = st.text_area("📝 Paste your draft article or claim to fact-check:",
+    query = st.text_area("Paste your draft article or claim to fact-check:",
                          placeholder="e.g., 'The president said unemployment is at a historic low of 3.2%'",
                          height=160)
-    use_web = st.checkbox("🔍 Web Search", value=True, help="Enable Google lookups")
+    use_web = st.checkbox("Web Search", value=True, help="Enable Google lookups")
 
     if query and st.button("Analyze", type="primary"):
         # Try to detect source/speaker from the claim text
@@ -86,44 +90,44 @@ with tab1:
                 resp = claude.messages.create(**kwargs)
                 text = extract_response_text(resp)
 
-                st.markdown("## ✨ Analysis ✅")
+                st.markdown("## Analysis")
                 render_pretty(text)
 
                 if FLAGS.LOGGING_ENABLED:
                     if log_to_airtable(query, text, sources_data, consensus):
-                        st.success("✅ Session logged to Airtable")
+                        st.success("Session logged to Airtable")
             except Exception as e:
                 st.error(f"Error generating analysis: {e}")
 
-        st.markdown("## 📊 What Other Fact-Checkers Found")
+        st.markdown("## What Other Fact-Checkers Found")
         consensus_badge(consensus)
         render_sources_block(sources_data)
 
 with tab2:
-    st.subheader("🎵 Audio/Video transcription & claim ID")
+    st.subheader("Audio/Video transcription & claim ID")
     uploaded = st.file_uploader("Choose an audio/video file", type=["mp3","wav","m4a","mp4","mov","avi"])
     if uploaded is not None:
         st.audio(uploaded)
-        if st.button("🎵 Process Audio", type="primary"):
+        if st.button("Process Audio", type="primary"):
             with st.spinner("Transcribing & extracting claims..."):
                 tr = transcribe_audio(uploaded)
                 if tr:
                     st.session_state.audio_transcript = tr
                     st.session_state.audio_claims = extract_claims_from_transcript(tr) or []
-                    st.success("✅ Processing complete")
+                    st.success("Processing complete")
 
     if st.session_state.get("audio_transcript"):
-        st.markdown("### 📝 Transcript")
+        st.markdown("### Transcript")
         st.text_area("", value=st.session_state.audio_transcript, height=150, disabled=True)
 
     claims = st.session_state.get("audio_claims") or []
     if claims:
-        st.markdown(f"### 🎯 Found {len(claims)} claims")
+        st.markdown(f"### Found {len(claims)} claims")
         for i, c in enumerate(claims, 1):
             cols = st.columns([0.1, 0.7, 0.2])
             cols[0].markdown(f"**{i}.**")
             cols[1].markdown(c)
-            if cols[2].button("🔍 Fact-check", key=f"fc_{i}"):
+            if cols[2].button("Fact-check", key=f"fc_{i}"):
                 with st.spinner("Fact-checking claim..."):
                     sources_data, consensus = get_multi_source_analysis(c, index, metadata, st.secrets.get("GOOGLE_FACTCHECK_API_KEY",""))
                     render_pf_anchor(sources_data)
@@ -149,9 +153,9 @@ with tab2:
 
                         if FLAGS.LOGGING_ENABLED:
                             if log_to_airtable(c, text, sources_data, consensus):
-                                st.success("✅ Session logged to Airtable")
+                                st.success("Session logged to Airtable")
 
-                        st.markdown("### 📊 What Other Fact-Checkers Found")
+                        st.markdown("### What Other Fact-Checkers Found")
                         consensus_badge(consensus)
                         render_sources_block(sources_data)
                     except Exception as e:
