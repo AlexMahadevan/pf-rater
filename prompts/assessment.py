@@ -92,7 +92,7 @@ State High / Medium / Low and justify in 1–2 sentences.
 Numbered list of the most similar past PolitiFact fact-checks with claim, rating, and link.
 
 ### Evidence Gaps
-Bullet list of follow-ups to strengthen the fact-check.
+Bullet list of follow-ups to strengthen the fact-check. Insert a blank line between each bullet point.
 
 Calibration:
 {pf_anchor if pf_anchor else "- No clear PolitiFact anchor found."}
