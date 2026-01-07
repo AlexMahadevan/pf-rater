@@ -61,9 +61,14 @@ def get_custom_css():
         color: var(--text-primary) !important;
     }
     
-    p, li, div, span, label {
+    p, li, div:not([class*="st-"]), span:not([class*="st-"]), label {
         font-family: 'Source Serif 4', serif !important;
         color: var(--text-primary) !important;
+    }
+    
+    /* Ensure Streamlit icons and specific Material symbols keep their intended font */
+    .st-emotion-cache-1vt4y6f, .material-icons, [class^="st-"] svg {
+        font-family: 'Material Icons' !important;
     }
     
     /* Main title styling with glow effect */
