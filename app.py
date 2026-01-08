@@ -42,7 +42,7 @@ def render_pf_anchor(sources_data: list[dict]):
     if not pf or not pf.get("results"):
         return
     top = pf["results"][0]
-    rating = top.get("rating","N/A")
+    rating = format_rating_name(top.get("rating","N/A"))
     claim = top.get("claim","")
     url = top.get("url","")
     sim = top.get("similarity_score", None)

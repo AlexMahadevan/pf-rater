@@ -61,14 +61,14 @@ def get_custom_css():
         color: var(--text-primary) !important;
     }
     
-    p, li, div:not([class*="st-"]), span:not([class*="st-"]), label {
-        font-family: 'Source Serif 4', serif !important;
-        color: var(--text-primary) !important;
+    /* Typography - Apply to content-carrying elements but stay away from generic divs/spans that might hold icons */
+    p, li, label, .stMarkdown, .stText, .stButton button {
+        font-family: 'Source Serif 4', serif;
     }
     
-    /* Ensure Streamlit icons and specific Material symbols keep their intended font */
-    .st-emotion-cache-1vt4y6f, .material-icons, [class^="st-"] svg {
-        font-family: 'Material Icons' !important;
+    /* Ensure Streamlit's icons keep their intended font */
+    [data-testid="stIcon"], .material-icons, .material-symbols-outlined, [class*="st-emotion-cache"] svg {
+        font-family: 'Material Icons', 'Material Symbols Outlined' !important;
     }
     
     /* Main title styling with glow effect */

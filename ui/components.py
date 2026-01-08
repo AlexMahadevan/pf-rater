@@ -75,7 +75,7 @@ def render_sources_block(sources_data: list[dict]):
         with st.expander(f"{name} ({len(results)} results)"):
             for i, r in enumerate(results):
                 claim = r.get("claim", "No claim text")
-                rating = r.get("rating", "No rating")
+                rating = format_rating_name(r.get("rating", "No rating"))
                 publisher = r.get("publisher", "Unknown")
                 url = r.get("url", "")
                 similarity = r.get("similarity_score")
