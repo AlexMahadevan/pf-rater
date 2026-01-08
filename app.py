@@ -10,7 +10,7 @@ from prompts.assessment import build_enhanced_prompt
 from utils.parsing import extract_response_text
 from ui.components import consensus_badge, render_sources_block, render_source_context
 from ui.custom_styles import get_custom_css
-from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources
+from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources, format_rating_name
 from retrieval.search import search_politifact_db
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
