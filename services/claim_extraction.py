@@ -27,7 +27,7 @@ def extract_claims_from_transcript(transcript: str) -> list[str]:
         client = get_anthropic()
         prompt = CLAIM_PROMPT.format(transcript=transcript)
         resp = client.messages.create(
-            model=FLAGS.ANTHROPIC_MODEL,
+            model=FLAGS.ANTHROPIC_SONNET_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800,
         )
@@ -46,7 +46,7 @@ def extract_key_terms_and_claims(text: str) -> tuple[list[str], list[str]]:
     try:
         client = get_anthropic()
         resp = client.messages.create(
-            model=FLAGS.ANTHROPIC_MODEL,
+            model=FLAGS.ANTHROPIC_SONNET_MODEL,
             messages=[{"role": "user", "content": TERMS_PROMPT.format(text=text[:2000])}],
             max_tokens=600,
         )

@@ -82,7 +82,7 @@ with tab1:
                     tools = [{"type": "web_search", "name": "web_search", "max_results": 5}]
                 claude = get_anthropic()
                 kwargs = {
-                    "model": FLAGS.ANTHROPIC_MODEL,
+                    "model": FLAGS.ANTHROPIC_OPUS_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 1500,
                 }
@@ -139,7 +139,7 @@ with tab2:
                             tools = [{"type": "web_search", "name": "web_search", "max_results": 5}]
                         claude = get_anthropic()
                         kwargs = {
-                            "model": FLAGS.ANTHROPIC_MODEL,
+                            "model": FLAGS.ANTHROPIC_OPUS_MODEL,
                             "messages": [{"role": "user", "content": prompt}],
                             "max_tokens": 1500,
                         }
@@ -250,7 +250,7 @@ with tab3:
                     try:
                         claude = get_anthropic()
                         resp = claude.messages.create(
-                            model=FLAGS.ANTHROPIC_MODEL,
+                            model=FLAGS.ANTHROPIC_OPUS_MODEL,
                             max_tokens=1000,
                             system=system_instructions_text,
                             messages=api_messages

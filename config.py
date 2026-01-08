@@ -10,7 +10,9 @@ class Flags:
     # Models
     OPENAI_EMBED_MODEL: str = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
     OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
-    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    ANTHROPIC_OPUS_MODEL: str = os.getenv("ANTHROPIC_OPUS_MODEL", "claude-opus-4-5-20251101")
+    ANTHROPIC_SONNET_MODEL: str = os.getenv("ANTHROPIC_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+    ANTHROPIC_MODEL: str = ANTHROPIC_SONNET_MODEL # Legacy default
 
     # Retrieval
     TOP_K: int = int(os.getenv("TOP_K", 25))
