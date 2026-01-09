@@ -12,6 +12,8 @@ from ui.components import consensus_badge, render_sources_block, render_source_c
 from ui.custom_styles import get_custom_css
 from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources, format_rating_name
 from retrieval.search import search_politifact_db
+from services.jurist import analyze_jurisprudence_consistency
+from concurrent.futures import ThreadPoolExecutor
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
 
@@ -35,6 +37,28 @@ def render_pretty(markdown_text: str):
         st.warning("No analysis generated.")
         return
     st.markdown(markdown_text, unsafe_allow_html=True)
+
+def get_base_analysis(query, sources_data, consensus, use_web):
+    prompt = build_enhanced_prompt(query, sources_data, consensus, use_web)
+    try:
+        tools = None
+        if use_web and FLAGS.ENABLE_WEB_SEARCH:
+            tools = [{"type": "web_search", "name": "web_search", "max_results": 5}]
+        claude = get_anthropic()
+        kwargs = {
+            "model": FLAGS.ANTHROPIC_OPUS_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1500,
+            "stream": True
+        }
+        if tools:
+            kwargs["tools"] = tools
+        
+        # Return the stream for Streamlit to consume
+        return claude.messages.create(**kwargs)
+    except Exception as e:
+        st.error(f"Error starting analysis stream: {e}")
+        return None
 
 def render_pf_anchor(sources_data: list[dict]):
     # Pull top PF result and show it prominently (what editors expect)
@@ -75,28 +99,27 @@ with tab1:
             # Show the PF anchor so editors understand the baseline
             render_pf_anchor(sources_data)
 
-            prompt = build_enhanced_prompt(query, sources_data, consensus, use_web)
+        with st.spinner("Council of Experts deliberating..."):
             try:
-                tools = None
-                if use_web and FLAGS.ENABLE_WEB_SEARCH:
-                    tools = [{"type": "web_search", "name": "web_search", "max_results": 5}]
-                claude = get_anthropic()
-                kwargs = {
-                    "model": FLAGS.ANTHROPIC_OPUS_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 1500,
-                }
-                if tools:
-                    kwargs["tools"] = tools
-                resp = claude.messages.create(**kwargs)
-                text = extract_response_text(resp)
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    # Kick off heavy reasoning tasks in parallel
+                    analysis_future = executor.submit(get_base_analysis, query, sources_data, consensus, use_web)
+                    jurist_future = executor.submit(analyze_jurisprudence_consistency, query, sources_data)
+                    
+                    # Show results as they come in
+                    st.markdown("## Analysis")
+                    stream = analysis_future.result()
+                    if stream:
+                        # Stream the main analysis for perceived speed
+                        full_text = st.write_stream((chunk.delta.text for chunk in stream if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text')))
+                    
+                    jurist_report = jurist_future.result()
+                    with st.expander("⚖️ Legacy Jurist Report", expanded=True):
+                        st.markdown(jurist_report)
 
-                st.markdown("## Analysis")
-                render_pretty(text)
-
-                if FLAGS.LOGGING_ENABLED:
-                    if log_to_airtable(query, text, sources_data, consensus):
-                        st.success("Session logged to Airtable")
+                    if FLAGS.LOGGING_ENABLED and 'full_text' in locals():
+                        if log_to_airtable(query, full_text, sources_data, consensus):
+                            st.success("Session logged to Airtable")
             except Exception as e:
                 st.error(f"Error generating analysis: {e}")
 
@@ -132,35 +155,34 @@ with tab2:
                 with st.spinner("Fact-checking claim..."):
                     sources_data, consensus = get_multi_source_analysis(c, index, metadata, st.secrets.get("GOOGLE_FACTCHECK_API_KEY",""))
                     render_pf_anchor(sources_data)
-                    prompt = build_enhanced_prompt(c, sources_data, consensus, use_web=True)
-                    try:
-                        tools = None
-                        if FLAGS.ENABLE_WEB_SEARCH:
-                            tools = [{"type": "web_search", "name": "web_search", "max_results": 5}]
-                        claude = get_anthropic()
-                        kwargs = {
-                            "model": FLAGS.ANTHROPIC_OPUS_MODEL,
-                            "messages": [{"role": "user", "content": prompt}],
-                            "max_tokens": 1500,
-                        }
-                        if tools:
-                            kwargs["tools"] = tools
-                        resp = claude.messages.create(**kwargs)
-                        text = extract_response_text(resp)
+                    with st.spinner("Council of Experts deliberating..."):
+                        try:
+                            with ThreadPoolExecutor(max_workers=2) as executor:
+                                # Kick off heavy reasoning tasks in parallel
+                                analysis_future = executor.submit(get_base_analysis, c, sources_data, consensus, use_web=True)
+                                jurist_future = executor.submit(analyze_jurisprudence_consistency, c, sources_data)
+                                
+                                # Show results as they come in
+                                st.markdown("---")
+                                st.info(f"**Claim:** {c}")
+                                
+                                stream = analysis_future.result()
+                                if stream:
+                                    full_text = st.write_stream((chunk.delta.text for chunk in stream if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text')))
+                                
+                                jurist_report = jurist_future.result()
+                                with st.expander("⚖️ Legacy Jurist Report", expanded=True):
+                                    st.markdown(jurist_report)
 
-                        st.markdown("---")
-                        st.info(f"**Claim:** {c}")
-                        render_pretty(text)
+                                if FLAGS.LOGGING_ENABLED and 'full_text' in locals():
+                                    if log_to_airtable(c, full_text, sources_data, consensus):
+                                        st.success("Session logged to Airtable")
 
-                        if FLAGS.LOGGING_ENABLED:
-                            if log_to_airtable(c, text, sources_data, consensus):
-                                st.success("Session logged to Airtable")
-
-                        st.markdown("### What Other Fact-Checkers Found")
-                        consensus_badge(consensus)
-                        render_sources_block(sources_data)
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                            st.markdown("### What Other Fact-Checkers Found")
+                            consensus_badge(consensus)
+                            render_sources_block(sources_data)
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
 with tab3:
     st.subheader("Chat with the PolitiFact Archive")

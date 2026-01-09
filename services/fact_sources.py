@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Tuple, Iterable
 import re
 import requests
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor
 
 from services.claim_extraction import extract_key_terms_and_claims
 from retrieval.search import search_politifact_db
@@ -221,12 +222,17 @@ def get_multi_source_analysis(query: str, index, metadata, google_api_key: str) 
     """
     sources: List[Dict[str, Any]] = []
 
-    # 1) PolitiFact DB (fast local RAG; jurisprudence anchor)
-    pf_data = search_politifact_db(query, index, metadata)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # 1) Kick off PolitiFact DB search and Google search in parallel
+        pf_future = executor.submit(search_politifact_db, query, index, metadata)
+        google_future = executor.submit(enhanced_google_factcheck_search, query, google_api_key)
+
+        # 2) Gather results
+        pf_data = pf_future.result()
+        g_results = google_future.result()
+
     sources.append(pf_data)
 
-    # 2) Google (freshness). Split PF vs non-PF so editors see "Recent PolitiFact".
-    g_results = enhanced_google_factcheck_search(query, google_api_key)
     if g_results:
         pf_external, non_pf = _split_google_by_publisher(g_results)
         if pf_external:
