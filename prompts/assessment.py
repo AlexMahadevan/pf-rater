@@ -21,7 +21,7 @@ def _summarize_pf_anchor(pf_results: List[Dict]) -> str:
         anchor += f" (similarity ≈ {sim:.2f})"
     return anchor
 
-def build_enhanced_prompt(query: str, sources_data: list[dict], consensus: dict, use_web: bool) -> str:
+def build_enhanced_prompt(query: str, sources_data: list[dict], consensus: dict, use_web: bool, auditor_memo: str = "") -> str:
     """
     Build a prompt that asks the model to return structured, human-readable markdown
     and to ALIGN with PolitiFact precedent unless there is strong, well-cited reason to deviate.
@@ -101,7 +101,9 @@ Calibration:
 {pf_anchor if pf_anchor else "- No clear PolitiFact anchor found."}
 {pf_rule}
 
----
+### Internal Auditor Memo (Confidential):
+{auditor_memo if auditor_memo else "No specific red flags identified by internal audit."}
+
 Draft to assess:
 {query}
 

@@ -13,6 +13,7 @@ from ui.custom_styles import get_custom_css
 from utils.source_tracking import extract_source_from_claim, get_source_statistics, get_top_sources, format_rating_name
 from retrieval.search import search_politifact_db
 from services.jurist import analyze_jurisprudence_consistency
+from services.auditor import audit_search_results
 from concurrent.futures import ThreadPoolExecutor
 
 st.set_page_config(page_title="PolitiFact Jurisprudence Assistant", layout="wide")
@@ -38,8 +39,8 @@ def render_pretty(markdown_text: str):
         return
     st.markdown(markdown_text, unsafe_allow_html=True)
 
-def get_base_analysis(query, sources_data, consensus, use_web):
-    prompt = build_enhanced_prompt(query, sources_data, consensus, use_web)
+def get_base_analysis(query, sources_data, consensus, use_web, auditor_memo=""):
+    prompt = build_enhanced_prompt(query, sources_data, consensus, use_web, auditor_memo)
     try:
         tools = None
         if use_web and FLAGS.ENABLE_WEB_SEARCH:
@@ -101,20 +102,27 @@ with tab1:
 
         with st.spinner("Council of Experts deliberating..."):
             try:
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    # Kick off heavy reasoning tasks in parallel
-                    analysis_future = executor.submit(get_base_analysis, query, sources_data, consensus, use_web)
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    # 1. Start sub-agents that don't depend on each other
                     jurist_future = executor.submit(analyze_jurisprudence_consistency, query, sources_data)
+                    auditor_future = executor.submit(audit_search_results, sources_data)
+                    
+                    # 2. Get auditor memo (Sonnet is fast)
+                    memo = auditor_future.result()
+                    
+                    # 3. Start main analysis with the memo injected
+                    analysis_future = executor.submit(get_base_analysis, query, sources_data, consensus, use_web, memo)
                     
                     # Show results as they come in
                     st.markdown("## Analysis")
                     stream = analysis_future.result()
                     if stream:
-                        # Stream the main analysis for perceived speed
+                        # Stream the main analysis
                         full_text = st.write_stream((chunk.delta.text for chunk in stream if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text')))
                     
+                    # Get Jurist report (may have finished while streaming)
                     jurist_report = jurist_future.result()
-                    with st.expander("⚖️ Legacy Jurist Report", expanded=True):
+                    with st.expander("Legacy Jurist Report"):
                         st.markdown(jurist_report)
 
                     if FLAGS.LOGGING_ENABLED and 'full_text' in locals():
@@ -157,12 +165,18 @@ with tab2:
                     render_pf_anchor(sources_data)
                     with st.spinner("Council of Experts deliberating..."):
                         try:
-                            with ThreadPoolExecutor(max_workers=2) as executor:
-                                # Kick off heavy reasoning tasks in parallel
-                                analysis_future = executor.submit(get_base_analysis, c, sources_data, consensus, use_web=True)
+                            with ThreadPoolExecutor(max_workers=3) as executor:
+                                # Start sub-agents
                                 jurist_future = executor.submit(analyze_jurisprudence_consistency, c, sources_data)
+                                auditor_future = executor.submit(audit_search_results, sources_data)
                                 
-                                # Show results as they come in
+                                # Get auditor memo
+                                memo = auditor_future.result()
+                                
+                                # Start main analysis with memo
+                                analysis_future = executor.submit(get_base_analysis, c, sources_data, consensus, True, memo)
+                                
+                                # Show results
                                 st.markdown("---")
                                 st.info(f"**Claim:** {c}")
                                 
@@ -170,8 +184,9 @@ with tab2:
                                 if stream:
                                     full_text = st.write_stream((chunk.delta.text for chunk in stream if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text')))
                                 
+                                # Get Jurist report
                                 jurist_report = jurist_future.result()
-                                with st.expander("⚖️ Legacy Jurist Report", expanded=True):
+                                with st.expander("Legacy Jurist Report"):
                                     st.markdown(jurist_report)
 
                                 if FLAGS.LOGGING_ENABLED and 'full_text' in locals():
